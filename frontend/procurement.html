@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operator - Smart Farmer Procurement</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar">
+    <a href="index.html" class="brand">🌾 Procurement Centre Operator</a>
+    <div class="nav-links">
+        <span class="portal-tag operator">Operator</span>
+        <a href="index.html">Home</a>
+        <a href="#" id="logoutLink">Logout</a>
+    </div>
+</div>
+
+<!-- ================= LOGIN ================= -->
+
+<div class="container narrow" id="loginSection">
+    <h1>Operator login</h1>
+    <div class="auth-card">
+        <div id="loginMsg"></div>
+
+        <form id="staffLoginForm">
+            <label for="mobile">Mobile number</label>
+            <input type="text" id="mobile" maxlength="15" placeholder="Enter mobile number" required>
+
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter password" required>
+
+            <button type="submit" id="loginBtn" style="width:100%; margin-top:22px;">Log in</button>
+        </form>
+    </div>
+</div>
+
+<!-- ================= DASHBOARD ================= -->
+
+<div class="container" id="operatorSection" style="display:none;">
+    <h1>Welcome, <span id="staffName">Operator</span></h1>
+    <div id="msgBox"></div>
+
+    <div class="card" style="margin-top:20px;">
+        <h2 style="font-size:1.1rem;">Queue</h2>
+        <label for="centreId">Procurement centre ID</label>
+        <input type="number" id="centreId" min="1">
+        <div class="field-hint" id="centreHint"></div>
+
+        <button id="callNextBtn" type="button">Call next farmer</button>
+        <button class="secondary" id="refreshQueueBtn" type="button" style="margin-left:8px;">Refresh queue</button>
+
+        <div style="margin-top:16px;">
+            <p class="helper-text" style="margin-bottom:4px;">Currently serving</p>
+            <div class="token-display" id="currentToken" style="font-size:2.2rem;">—</div>
+            <div id="waitingList" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+        <h2 style="font-size:1.1rem;">Update procurement</h2>
+        <label for="bookingId">Booking ID</label>
+        <input type="number" id="bookingId" placeholder="Enter booking ID" min="1">
+
+        <label for="actualQuantity">Actual quantity</label>
+        <input type="number" step="0.01" id="actualQuantity" placeholder="Enter actual quantity" min="0">
+
+        <label for="qualityStatus">Quality status</label>
+        <select id="qualityStatus">
+            <option value="GOOD">GOOD</option>
+            <option value="AVERAGE">AVERAGE</option>
+            <option value="REJECTED">REJECTED</option>
+        </select>
+
+        <label for="procurementStatus">Procurement status</label>
+        <select id="procurementStatus">
+            <option value="VERIFICATION">VERIFICATION</option>
+            <option value="WEIGHING">WEIGHING</option>
+            <option value="COMPLETED">COMPLETED</option>
+        </select>
+
+        <button id="updateProcurementBtn" type="button">Update procurement</button>
+        <p class="helper-text">Marking a booking COMPLETED automatically calculates the payment (quantity × crop MSP).</p>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+        <h2 style="font-size:1.1rem;">Complete payment</h2>
+        <p class="helper-text">Only works after procurement for this booking is COMPLETED.</p>
+
+        <label for="paymentBookingId">Booking ID</label>
+        <input type="number" id="paymentBookingId" placeholder="Enter booking ID" min="1">
+
+        <label for="paymentMethod">Payment method</label>
+        <input type="text" id="paymentMethod" placeholder="e.g. Bank Transfer, UPI, Cash">
+
+        <label for="transactionId">Transaction ID (optional)</label>
+        <input type="text" id="transactionId" placeholder="e.g. UPI reference number">
+
+        <button id="completePaymentBtn" type="button">Mark payment complete</button>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-bottom" style="margin-top:0; border-top:none; padding-top:0;">
+        <span>© 2026 Smart Farmer Procurement System</span>
+        <a href="index.html">Back to home</a>
+    </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+
+function checkLogin() {
+    const token = localStorage.getItem("staff_token");
+    document.getElementById("loginSection").style.display = token ? "none" : "block";
+    document.getElementById("operatorSection").style.display = token ? "block" : "none";
+    if (token) loadProfile();
+}
+
+checkLogin();
+
+document.getElementById("logoutLink").addEventListener("click", function (e) {
+    e.preventDefault();
+    localStorage.removeItem("staff_token");
+    checkLogin();
+});
+
+function staffAuthHeaders() {
+    const token = localStorage.getItem("staff_token");
+    return token ? { "Authorization": "Bearer " + token } : {};
+}
+
+async function handleAuthFailure(status) {
+    if (status === 401 || status === 403) {
+        localStorage.removeItem("staff_token");
+        showToast("Session expired, please log in again", "error");
+        checkLogin();
+        return true;
+    }
+    return false;
+}
+
+// -----------------------------------------------------------------
+// LOGIN
+// -----------------------------------------------------------------
+
+document.getElementById("staffLoginForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const loginMsg = document.getElementById("loginMsg");
+    const loginBtn = document.getElementById("loginBtn");
+    loginMsg.innerHTML = "";
+
+    const mobile = document.getElementById("mobile").value.trim();
+    const password = document.getElementById("password").value;
+
+    setButtonLoading(loginBtn, true, "Checking credentials…");
+
+    const { ok, body } = await apiRequest("/auth/staff-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile, password }),
+    });
+
+    setButtonLoading(loginBtn, false);
+
+    if (!ok) {
+        loginMsg.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Invalid operator credentials")}</div>`;
+        return;
+    }
+
+    localStorage.setItem("staff_token", body.access_token);
+    showToast("Login successful", "success");
+    checkLogin();
+});
+
+// -----------------------------------------------------------------
+// PROFILE — auto-fill and lock centre ID for operators
+// -----------------------------------------------------------------
+
+async function loadProfile() {
+    const { ok, status, body } = await apiRequest("/auth/staff-me", { headers: staffAuthHeaders() });
+    if (await handleAuthFailure(status)) return;
+    if (!ok) return;
+
+    document.getElementById("staffName").innerText = body.name; // innerText: safe
+
+    const centreInput = document.getElementById("centreId");
+    const hint = document.getElementById("centreHint");
+
+    if (body.role === "operator" && body.centre_id) {
+        centreInput.value = body.centre_id;
+        centreInput.disabled = true;
+        hint.textContent = `You're assigned to centre #${body.centre_id}.`;
+    } else {
+        hint.textContent = "As an admin, you can act on any centre ID.";
+    }
+
+    if (centreInput.value) refreshQueue();
+}
+
+// -----------------------------------------------------------------
+// QUEUE
+// -----------------------------------------------------------------
+
+async function refreshQueue() {
+    const centreId = document.getElementById("centreId").value;
+    if (!centreId) return;
+
+    const { ok, body } = await apiRequest(`/queue/${centreId}`);
+    if (!ok) return;
+
+    document.getElementById("currentToken").innerText = body.current_token ?? "—";
+    const waitingEl = document.getElementById("waitingList");
+    waitingEl.innerHTML = body.waiting && body.waiting.length
+        ? body.waiting.map(t => `<span class="status-badge" data-status="WAITING" style="margin:3px;">Token ${escapeHtml(t)}</span>`).join("")
+        : `<span class="helper-text">No one waiting.</span>`;
+}
+
+document.getElementById("refreshQueueBtn").addEventListener("click", refreshQueue);
+
+document.getElementById("callNextBtn").addEventListener("click", async function () {
+    const msgBox = document.getElementById("msgBox");
+    const centreId = document.getElementById("centreId").value;
+    msgBox.innerHTML = "";
+
+    if (!centreId) {
+        msgBox.innerHTML = `<div class="msg error">Enter a procurement centre ID.</div>`;
+        return;
+    }
+
+    setButtonLoading(this, true, "Calling…");
+
+    const { ok, status, body } = await apiRequest(`/queue/next?centre_id=${centreId}`, {
+        method: "POST",
+        headers: staffAuthHeaders(),
+    });
+
+    setButtonLoading(this, false);
+    if (await handleAuthFailure(status)) return;
+
+    if (!ok) {
+        msgBox.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Could not call next farmer")}</div>`;
+        return;
+    }
+
+    document.getElementById("currentToken").innerText = body.current_token ?? "—";
+    const waitingEl = document.getElementById("waitingList");
+    waitingEl.innerHTML = body.waiting && body.waiting.length
+        ? body.waiting.map(t => `<span class="status-badge" data-status="WAITING" style="margin:3px;">Token ${escapeHtml(t)}</span>`).join("")
+        : `<span class="helper-text">No one waiting.</span>`;
+
+    showToast(`Now serving token ${body.current_token}`, "success");
+});
+
+// -----------------------------------------------------------------
+// PROCUREMENT UPDATE
+// -----------------------------------------------------------------
+
+document.getElementById("updateProcurementBtn").addEventListener("click", async function () {
+    const msgBox = document.getElementById("msgBox");
+    const bookingId = document.getElementById("bookingId").value;
+    const actualQuantity = document.getElementById("actualQuantity").value;
+    msgBox.innerHTML = "";
+
+    if (!bookingId) {
+        msgBox.innerHTML = `<div class="msg error">Enter a booking ID.</div>`;
+        return;
+    }
+    if (!actualQuantity || parseFloat(actualQuantity) < 0) {
+        msgBox.innerHTML = `<div class="msg error">Enter a valid actual quantity.</div>`;
+        return;
+    }
+
+    const data = {
+        actual_quantity: parseFloat(actualQuantity),
+        quality_status: document.getElementById("qualityStatus").value,
+        procurement_status: document.getElementById("procurementStatus").value,
+    };
+
+    setButtonLoading(this, true, "Updating…");
+
+    const { ok, status, body } = await apiRequest(`/procurement?booking_id=${bookingId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...staffAuthHeaders() },
+        body: JSON.stringify(data),
+    });
+
+    setButtonLoading(this, false);
+    if (await handleAuthFailure(status)) return;
+
+    if (!ok) {
+        msgBox.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Procurement update failed")}</div>`;
+        return;
+    }
+
+    msgBox.innerHTML = `<div class="msg success">
+        Procurement updated for booking #${escapeHtml(bookingId)} —
+        quantity ${escapeHtml(body.actual_quantity ?? data.actual_quantity)},
+        quality ${escapeHtml(body.quality_status ?? data.quality_status)},
+        status ${escapeHtml(body.procurement_status ?? data.procurement_status)}.
+        ${data.procurement_status === "COMPLETED" ? " Payment has been calculated — you can now mark it complete below." : ""}
+    </div>`;
+    showToast("Procurement updated", "success");
+
+    document.getElementById("bookingId").value = "";
+    document.getElementById("actualQuantity").value = "";
+});
+
+// -----------------------------------------------------------------
+// COMPLETE PAYMENT
+// -----------------------------------------------------------------
+
+document.getElementById("completePaymentBtn").addEventListener("click", async function () {
+    const msgBox = document.getElementById("msgBox");
+    const bookingId = document.getElementById("paymentBookingId").value;
+    msgBox.innerHTML = "";
+
+    if (!bookingId) {
+        msgBox.innerHTML = `<div class="msg error">Enter a booking ID.</div>`;
+        return;
+    }
+
+    const data = {
+        payment_method: document.getElementById("paymentMethod").value.trim() || null,
+        transaction_id: document.getElementById("transactionId").value.trim() || null,
+    };
+
+    setButtonLoading(this, true, "Completing…");
+
+    const { ok, status, body } = await apiRequest(`/payments/${bookingId}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...staffAuthHeaders() },
+        body: JSON.stringify(data),
+    });
+
+    setButtonLoading(this, false);
+    if (await handleAuthFailure(status)) return;
+
+    if (!ok) {
+        msgBox.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Could not complete payment")}</div>`;
+        return;
+    }
+
+    msgBox.innerHTML = `<div class="msg success">
+        Payment of ₹${escapeHtml(body.amount)} marked complete for booking #${escapeHtml(bookingId)}.
+    </div>`;
+    showToast("Payment completed", "success");
+
+    document.getElementById("paymentBookingId").value = "";
+    document.getElementById("paymentMethod").value = "";
+    document.getElementById("transactionId").value = "";
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Farmer Procurement System</title>
+<meta name="description" content="Book your procurement slot, track your live queue token, and check your payment — all in one place.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar">
+    <a href="index.html" class="brand">🌾 Smart Farmer Procurement</a>
+    <div class="nav-links">
+        <a href="login.html">Farmer login</a>
+        <a href="register.html">Register</a>
+    </div>
+</div>
+
+<div class="hero-split">
+    <div class="hero-copy">
+        <span class="eyebrow">Open before sunrise, every market day</span>
+        <h1>Sell your harvest without standing in the queue.</h1>
+        <p>
+            Book a slot at your nearest procurement centre, watch your token move
+            up the line from your phone, and know the moment your payment clears —
+            no more waiting at the gate to ask "how much longer?"
+        </p>
+        <div class="hero-actions">
+            <a href="register.html"><button>Register as a farmer</button></a>
+            <a href="login.html"><button class="secondary">I already have an account</button></a>
+        </div>
+
+        <div class="hero-stats">
+            <div>
+                <div class="stat-num"><span data-count-to="4">0</span></div>
+                <div class="stat-label">steps, booking to payment</div>
+            </div>
+            <div>
+                <div class="stat-num"><span data-count-to="9">0</span></div>
+                <div class="stat-label">stages tracked per booking</div>
+            </div>
+            <div>
+                <div class="stat-num">Live</div>
+                <div class="stat-label">queue position, updated as it moves</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="token-stage">
+        <div class="token-ticket tilt-card" id="queueWidget" aria-label="Example live queue display">
+            <span class="stamp">NOW SERVING</span>
+            <div class="centre-name">Lucknow Mandi Centre</div>
+            <div class="perf" aria-hidden="true"></div>
+            <div class="token-num" id="queueToken">№42</div>
+            <div class="token-sub">This is what your token looks like once it's called.</div>
+            <div class="up-next">
+                <span class="up-next-label">Up next</span>
+                <span id="queueNext">№43 · №44 · №45</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="steps-section">
+    <div class="steps-heading">
+        <h2>How a booking becomes a payment</h2>
+        <p>Four steps, start to finish. Nothing skips ahead of the ledger.</p>
+    </div>
+    <ol class="steps-list">
+        <li class="step">
+            <span class="step-index">01</span>
+            <div>
+                <h3>Register once</h3>
+                <p>Add your name, mobile number and farm details. Takes about a minute.</p>
+            </div>
+        </li>
+        <li class="step">
+            <span class="step-index">02</span>
+            <div>
+                <h3>Book a slot</h3>
+                <p>Choose a procurement centre, a crop, and a time that works for you.</p>
+            </div>
+        </li>
+        <li class="step">
+            <span class="step-index">03</span>
+            <div>
+                <h3>Track your token</h3>
+                <p>Watch the live queue so you arrive right when you're needed — not before, not after.</p>
+            </div>
+        </li>
+        <li class="step">
+            <span class="step-index">04</span>
+            <div>
+                <h3>Get paid, on record</h3>
+                <p>Once your crop is weighed and verified, your payment status updates the moment it's logged.</p>
+            </div>
+        </li>
+    </ol>
+</div>
+
+<div class="role-row">
+    <div class="role-card farmer">
+        <h2>👨‍🌾 Farmer</h2>
+        <p>Register, book a slot, and track your queue position and payment in real time.</p>
+        <a href="login.html"><button>Farmer login</button></a>
+    </div>
+    <div class="role-card operator">
+        <h2>🏢 Procurement centre</h2>
+        <p>Call the next token, verify crop quality, and log procurement for your centre.</p>
+        <a href="procurement.html"><button class="secondary">Operator login</button></a>
+    </div>
+    <div class="role-card admin">
+        <h2>🛠 Admin</h2>
+        <p>Oversee every centre, manage staff accounts, and review procurement analytics.</p>
+        <a href="admin-dashboard.html"><button class="secondary">Admin login</button></a>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-grid">
+        <div>
+            <div class="footer-brand">🌾 Smart Farmer Procurement</div>
+            <p class="footer-tagline">Built for market day — sunrise queues, verified crops, and payments you can see the moment they're cleared.</p>
+        </div>
+        <div class="footer-col">
+            <h4>For farmers</h4>
+            <ul>
+                <li><a href="register.html">Register</a></li>
+                <li><a href="login.html">Log in</a></li>
+                <li><a href="booking.html">Book a slot</a></li>
+                <li><a href="queue.html">Track a queue</a></li>
+            </ul>
+        </div>
+        <div class="footer-col">
+            <h4>For centres</h4>
+            <ul>
+                <li><a href="procurement.html">Operator login</a></li>
+                <li><a href="payment.html">Payment status</a></li>
+            </ul>
+        </div>
+        <div class="footer-col">
+            <h4>Administration</h4>
+            <ul>
+                <li><a href="admin-dashboard.html">Admin dashboard</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <span>© 2026 Smart Farmer Procurement System</span>
+        <span>A student BTech web development project</span>
+    </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+(function () {
+    var tokenEl = document.getElementById("queueToken");
+    var nextEl = document.getElementById("queueNext");
+    if (!tokenEl || !nextEl) return;
+
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) return; // leave the static example token in place
+
+    var current = 42;
+
+    function render() {
+        tokenEl.style.opacity = "0";
+        setTimeout(function () {
+            tokenEl.textContent = "№" + current;
+            nextEl.textContent = "№" + (current + 1) + " · №" + (current + 2) + " · №" + (current + 3);
+            tokenEl.style.opacity = "1";
+        }, 180);
+        current += 1;
+        if (current > 58) current = 42;
+    }
+
+    setInterval(render, 2600);
+})();
+</script>
+
+<!-- =====================================================
+     AGRIBOT CHATBOT
+     ===================================================== -->
+
+<div id="agriBot">
+
+    <!-- Small Bot Button -->
+    <button
+        id="agriBotButton"
+        class="agri-bot-button"
+        aria-label="Open AgriBot"
+        title="Ask AgriBot"
+    >
+        🤖
+    </button>
+
+    <!-- Chat Window -->
+    <div
+        id="agriChatWindow"
+        class="agri-chat-window"
+    >
+
+        <!-- Header -->
+        <div class="agri-chat-header">
+
+            <div class="agri-bot-profile">
+
+                <div class="agri-bot-avatar">
+                    🤖
+                </div>
+
+                <div>
+                    <div class="agri-bot-name">
+                        AgriBot
+                    </div>
+
+                    <div class="agri-bot-status">
+                        ● Online
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Minimize -->
+            <button
+                id="agriBotMinimize"
+                class="agri-minimize-btn"
+                title="Minimize"
+                aria-label="Minimize chatbot"
+            >
+                −
+            </button>
+
+        </div>
+
+        <!-- Messages -->
+        <div
+            id="agriChatMessages"
+            class="agri-chat-messages"
+        >
+
+            <div class="agri-message bot-message">
+
+                <div class="agri-message-content">
+
+                    👋 Hello! I'm
+                    <strong>AgriBot</strong>.
+
+                    <br><br>
+
+                    Ask me anything about the
+                    <strong>
+                        Smart Farmer Procurement
+                        & Real-Time Queue Management System.
+                    </strong>
+
+                    <br><br>
+
+                    You can ask project FAQ questions
+                    or normal/general questions.
+
+                </div>
+
+                <span class="agri-tag general-tag">
+                    GENERAL QUESTION
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- Typing -->
+        <div
+            id="agriTyping"
+            class="agri-typing"
+        >
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+
+        <!-- Input -->
+        <div class="agri-chat-input-area">
+
+            <input
+                type="text"
+                id="agriChatInput"
+                placeholder="Ask your question..."
+                autocomplete="off"
+                aria-label="Ask AgriBot"
+            >
+
+            <button
+                id="agriChatSend"
+                class="agri-send-btn"
+                aria-label="Send message"
+                title="Send"
+            >
+                ➤
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Your existing scripts stay here -->
+
+<script src="js/config.js"></script>
+
+<!-- Your existing token animation / other scripts stay here -->
+
+
+<!-- AgriBot JavaScript -->
+<script src="js/chatbot.js"></script>
+
+</body>
+</html>
+</body>
+</html>

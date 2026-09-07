@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Farmer Login - Smart Farmer Procurement</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar">
+    <a href="index.html" class="brand">🌾 Smart Farmer Procurement</a>
+    <div class="nav-links">
+        <span class="portal-tag farmer">Farmer</span>
+        <a href="index.html">Home</a>
+        <a href="register.html">Register</a>
+    </div>
+</div>
+
+<div class="container narrow">
+    <h1>Farmer login</h1>
+    <p class="helper-text">Use the mobile number you registered with.</p>
+
+    <div class="auth-card">
+        <div id="msgBox"></div>
+
+        <form id="loginForm">
+            <label for="mobile">Mobile number</label>
+            <input type="text" id="mobile" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile number" required>
+
+            <label for="password">Password</label>
+            <div class="password-wrap">
+                <input type="password" id="password" autocomplete="current-password" required>
+                <button type="button" class="password-toggle" id="togglePw">Show</button>
+            </div>
+
+            <button type="submit" id="submitBtn" style="width:100%; margin-top:22px;">Log in</button>
+        </form>
+
+        <p class="helper-text" style="margin-top:18px; margin-bottom:0;">
+            New here? <a href="register.html">Create an account</a>
+        </p>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-bottom" style="margin-top:0; border-top:none; padding-top:0;">
+        <span>© 2026 Smart Farmer Procurement System</span>
+        <a href="index.html">Back to home</a>
+    </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+// If already logged in, skip straight to the dashboard.
+if (localStorage.getItem("farmer_id") && localStorage.getItem("access_token")) {
+    window.location.href = "farmer-dashboard.html";
+}
+
+document.getElementById("togglePw").addEventListener("click", function () {
+    const pw = document.getElementById("password");
+    const isHidden = pw.type === "password";
+    pw.type = isHidden ? "text" : "password";
+    this.textContent = isHidden ? "Hide" : "Show";
+});
+
+document.getElementById("loginForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const msgBox = document.getElementById("msgBox");
+    const submitBtn = document.getElementById("submitBtn");
+    msgBox.innerHTML = "";
+
+    const mobile = document.getElementById("mobile").value.trim();
+    const password = document.getElementById("password").value;
+
+    setButtonLoading(submitBtn, true, "Logging in…");
+
+    const { ok, body } = await apiRequest("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile, password }),
+    });
+
+    setButtonLoading(submitBtn, false);
+
+    if (!ok) {
+        msgBox.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Login failed")}</div>`;
+        return;
+    }
+
+    localStorage.setItem("access_token", body.access_token);
+    localStorage.setItem("farmer_id", body.user_id);
+    showToast("Welcome back!", "success");
+    window.location.href = "farmer-dashboard.html";
+});
+</script>
+
+</body>
+</html>

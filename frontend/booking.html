@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book a Slot - Smart Farmer Procurement</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar">
+    <a href="index.html" class="brand">🌾 Smart Farmer Procurement</a>
+    <div class="nav-links">
+        <span class="portal-tag farmer">Farmer</span>
+        <a href="farmer-dashboard.html">Dashboard</a>
+    </div>
+</div>
+
+<div class="container narrow">
+    <h1>Book a procurement slot</h1>
+
+    <div class="auth-card">
+        <div id="msgBox"></div>
+
+        <form id="bookingForm">
+            <label for="centre">Procurement centre</label>
+            <select id="centre" required><option value="">Loading centres…</option></select>
+
+            <label for="crop">Crop</label>
+            <select id="crop" required><option value="">Loading crops…</option></select>
+
+            <label for="quantity">Quantity (in the crop's unit)</label>
+            <input type="number" id="quantity" step="0.01" min="0.01" required>
+            <div class="field-hint" id="estimateHint">Select a crop to see the estimated payout.</div>
+
+            <label for="bookingDate">Date</label>
+            <input type="date" id="bookingDate" required>
+
+            <label for="slot">Time slot</label>
+            <select id="slot" required>
+                <option value="09:00-10:00">09:00 - 10:00</option>
+                <option value="10:00-11:00">10:00 - 11:00</option>
+                <option value="11:00-12:00">11:00 - 12:00</option>
+                <option value="14:00-15:00">14:00 - 15:00</option>
+                <option value="15:00-16:00">15:00 - 16:00</option>
+            </select>
+
+            <button type="submit" id="submitBtn" style="width:100%; margin-top:22px;">Confirm booking</button>
+        </form>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-bottom" style="margin-top:0; border-top:none; padding-top:0;">
+        <span>© 2026 Smart Farmer Procurement System</span>
+        <a href="farmer-dashboard.html">Back to dashboard</a>
+    </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+const farmerId = localStorage.getItem("farmer_id");
+if (!farmerId || !localStorage.getItem("access_token")) window.location.href = "login.html";
+
+// Can't book a slot in the past.
+document.getElementById("bookingDate").min = new Date().toISOString().split("T")[0];
+
+let cropsById = {};
+
+async function loadCentres() {
+    const centreSelect = document.getElementById("centre");
+    const { ok, body } = await apiRequest("/centres");
+
+    if (!ok || !Array.isArray(body) || body.length === 0) {
+        centreSelect.innerHTML = `<option value="">No centres available</option>`;
+        document.getElementById("msgBox").innerHTML =
+            `<div class="msg error">Could not load procurement centres. Check that the backend is running.</div>`;
+        return;
+    }
+
+    centreSelect.innerHTML = `<option value="" disabled selected>Select a procurement centre</option>` +
+        body.map(c => `<option value="${escapeHtml(c.centre_id)}">${escapeHtml(c.centre_name)} (${escapeHtml(c.district || "")})</option>`).join("");
+}
+
+async function loadCrops() {
+    const cropSelect = document.getElementById("crop");
+    const { ok, body } = await apiRequest("/crops");
+
+    if (!ok || !Array.isArray(body) || body.length === 0) {
+        cropSelect.innerHTML = `<option value="">No crops available</option>`;
+        document.getElementById("msgBox").innerHTML =
+            `<div class="msg error">Could not load crops. Check that the backend is running.</div>`;
+        return;
+    }
+
+    cropsById = Object.fromEntries(body.map(c => [String(c.crop_id), c]));
+
+    cropSelect.innerHTML = `<option value="" disabled selected>Select a crop</option>` +
+        body.map(c => `<option value="${escapeHtml(c.crop_id)}">${escapeHtml(c.crop_name)} — MSP ₹${escapeHtml(c.minimum_support_price)}/${escapeHtml(c.unit)}</option>`).join("");
+}
+
+function updateEstimate() {
+    const crop = cropsById[document.getElementById("crop").value];
+    const qty = parseFloat(document.getElementById("quantity").value);
+    const hint = document.getElementById("estimateHint");
+
+    if (!crop || !qty || qty <= 0) {
+        hint.textContent = "Select a crop and quantity to see the estimated payout.";
+        return;
+    }
+
+    const estimate = (qty * Number(crop.minimum_support_price || 0)).toFixed(2);
+    hint.textContent = `Estimated payout at MSP: ₹${estimate} (final amount depends on the quantity verified at the centre).`;
+}
+
+document.getElementById("crop").addEventListener("change", updateEstimate);
+document.getElementById("quantity").addEventListener("input", updateEstimate);
+
+loadCentres();
+loadCrops();
+
+document.getElementById("bookingForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const msgBox = document.getElementById("msgBox");
+    const submitBtn = document.getElementById("submitBtn");
+    msgBox.innerHTML = "";
+
+    const centreValue = document.getElementById("centre").value;
+    const cropValue = document.getElementById("crop").value;
+
+    if (!centreValue || !cropValue) {
+        msgBox.innerHTML = `<div class="msg error">Please select a procurement centre and a crop.</div>`;
+        return;
+    }
+
+    // NOTE: farmer_id is intentionally NOT sent here — the backend
+    // identifies the farmer from the logged-in user's auth token, so a
+    // booking can never be created under someone else's name.
+    const data = {
+        centre_id: parseInt(centreValue),
+        crop_id: parseInt(cropValue),
+        quantity: parseFloat(document.getElementById("quantity").value),
+        booking_date: document.getElementById("bookingDate").value,
+        slot: document.getElementById("slot").value,
+    };
+
+    setButtonLoading(submitBtn, true, "Booking…");
+
+    const { ok, status, body } = await apiRequest("/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(data),
+    });
+
+    setButtonLoading(submitBtn, false);
+
+    if (status === 401 || status === 403) {
+        localStorage.clear();
+        window.location.href = "login.html";
+        return;
+    }
+
+    if (!ok) {
+        msgBox.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Booking failed")}</div>`;
+        return;
+    }
+
+    showToast("Booking confirmed!", "success");
+    msgBox.innerHTML = `<div class="msg success">
+        Booking confirmed! Your token number is <strong>${escapeHtml(body.token_number)}</strong>.
+        <a href="queue.html?centre_id=${encodeURIComponent(data.centre_id)}&booking_id=${encodeURIComponent(body.booking_id)}">Track your queue</a>
+    </div>`;
+    document.getElementById("bookingForm").reset();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard - Smart Farmer Procurement</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="navbar">
+    <a href="index.html" class="brand">🌾 Admin Dashboard</a>
+    <div class="nav-links">
+        <span class="portal-tag admin">Admin</span>
+        <a href="index.html">Home</a>
+        <a href="#" id="logoutLink">Logout</a>
+    </div>
+</div>
+
+<!-- ================= ADMIN LOGIN ================= -->
+
+<div class="container narrow" id="loginSection">
+    <h1>Admin login</h1>
+    <div class="auth-card">
+        <div id="loginMsg"></div>
+
+        <form id="adminLoginForm">
+            <label for="mobile">Mobile number</label>
+            <input type="text" id="mobile" inputmode="numeric" pattern="[0-9]{10,15}" maxlength="15" placeholder="Enter admin mobile number" required>
+
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter admin password" required>
+
+            <button type="submit" id="loginBtn" style="width:100%; margin-top:22px;">Log in</button>
+        </form>
+    </div>
+</div>
+
+<!-- ================= ADMIN DASHBOARD ================= -->
+
+<div class="container" id="dashboardSection" style="display:none;">
+    <h1>Overview</h1>
+    <div id="dashboardMsg"></div>
+
+    <div class="grid" id="statsGrid"></div>
+
+    <div class="card" style="margin-top:30px;">
+        <h2 style="font-size:1.1rem;">Crop-wise procurement</h2>
+        <canvas id="cropChart" height="100"></canvas>
+    </div>
+</div>
+
+<!-- ================= STAFF MANAGEMENT ================= -->
+
+<div class="container" id="staffSection" style="display:none;">
+    <div class="card">
+        <h2 style="font-size:1.1rem;">Add a staff account</h2>
+        <p class="helper-text">Create an admin or operator login directly — no need to run a script.</p>
+        <div id="staffMsg"></div>
+
+        <form id="staffForm">
+            <label for="staffName">Full name</label>
+            <input type="text" id="staffName" required>
+
+            <label for="staffMobile">Mobile number</label>
+            <input type="text" id="staffMobile" inputmode="numeric" pattern="[0-9]{10,15}" required>
+
+            <label for="staffPassword">Password</label>
+            <div class="password-wrap">
+                <input type="password" id="staffPassword" minlength="6" required>
+                <button type="button" class="password-toggle" id="toggleStaffPw">Show</button>
+            </div>
+
+            <label for="staffRole">Role</label>
+            <select id="staffRole" required>
+                <option value="operator">Operator</option>
+                <option value="admin">Admin</option>
+            </select>
+
+            <div id="centreField">
+                <label for="staffCentre">Procurement centre</label>
+                <select id="staffCentre"></select>
+            </div>
+
+            <button type="submit" id="staffSubmitBtn">Create staff account</button>
+        </form>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-bottom" style="margin-top:0; border-top:none; padding-top:0;">
+        <span>© 2026 Smart Farmer Procurement System</span>
+        <a href="index.html">Back to home</a>
+    </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+
+function checkLogin() {
+    const token = localStorage.getItem("admin_token");
+    document.getElementById("loginSection").style.display = token ? "none" : "block";
+    document.getElementById("dashboardSection").style.display = token ? "block" : "none";
+    document.getElementById("staffSection").style.display = token ? "block" : "none";
+    if (token) {
+        loadDashboard();
+        loadCentresForStaffForm();
+    }
+}
+
+checkLogin();
+
+document.getElementById("logoutLink").addEventListener("click", function (e) {
+    e.preventDefault();
+    localStorage.removeItem("admin_token");
+    showToast("Logged out", "info");
+    checkLogin();
+});
+
+// -----------------------------------------------------------------
+// ADMIN LOGIN
+// -----------------------------------------------------------------
+
+document.getElementById("adminLoginForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const loginMsg = document.getElementById("loginMsg");
+    const loginBtn = document.getElementById("loginBtn");
+    loginMsg.innerHTML = "";
+
+    const mobile = document.getElementById("mobile").value.trim();
+    const password = document.getElementById("password").value;
+
+    setButtonLoading(loginBtn, true, "Checking credentials…");
+
+    const { ok, body } = await apiRequest("/auth/staff-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile, password }),
+    });
+
+    setButtonLoading(loginBtn, false);
+
+    if (!ok) {
+        loginMsg.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Invalid credentials")}</div>`;
+        return;
+    }
+
+    if (body.role !== "admin") {
+        loginMsg.innerHTML = `<div class="msg error">This account is registered as "${escapeHtml(body.role)}", not admin. Use the operator page instead.</div>`;
+        return;
+    }
+
+    localStorage.setItem("admin_token", body.access_token);
+    showToast("Admin login successful", "success");
+    checkLogin();
+});
+
+function adminAuthHeaders() {
+    const token = localStorage.getItem("admin_token");
+    return token ? { "Authorization": "Bearer " + token } : {};
+}
+
+async function handleAuthFailure(status) {
+    if (status === 401 || status === 403) {
+        localStorage.removeItem("admin_token");
+        showToast("Session expired, please log in again", "error");
+        checkLogin();
+        return true;
+    }
+    return false;
+}
+
+// -----------------------------------------------------------------
+// DASHBOARD
+// -----------------------------------------------------------------
+
+function skeletonTiles(n = 6) {
+    return Array.from({ length: n }).map(() => `
+        <div class="stat-tile">
+            <div class="skeleton-line" style="width:50%; height:28px;"></div>
+            <div class="skeleton-line" style="width:70%;"></div>
+        </div>
+    `).join("");
+}
+
+async function loadDashboard() {
+    const dashboardMsg = document.getElementById("dashboardMsg");
+    const statsGrid = document.getElementById("statsGrid");
+    dashboardMsg.innerHTML = "";
+    statsGrid.innerHTML = skeletonTiles();
+
+    const { ok, status, body: stats } = await apiRequest("/admin/dashboard", { headers: adminAuthHeaders() });
+    if (await handleAuthFailure(status)) return;
+
+    if (!ok) {
+        dashboardMsg.innerHTML = `<div class="msg error">${escapeHtml(stats?.detail || "Could not load dashboard")}</div>`;
+        return;
+    }
+
+    statsGrid.innerHTML = `
+        <div class="stat-tile"><div class="value">${Number(stats.total_farmers ?? 0)}</div><div class="label">Total farmers</div></div>
+        <div class="stat-tile"><div class="value">${Number(stats.today_bookings ?? 0)}</div><div class="label">Today's bookings</div></div>
+        <div class="stat-tile"><div class="value">${Number(stats.active_centres ?? 0)}</div><div class="label">Active centres</div></div>
+        <div class="stat-tile"><div class="value">${Number(stats.waiting_farmers ?? 0)}</div><div class="label">Waiting farmers</div></div>
+        <div class="stat-tile"><div class="value">${Number(stats.total_procured_quantity ?? 0)}</div><div class="label">Total procured qty</div></div>
+        <div class="stat-tile"><div class="value">₹${Number(stats.total_payments_completed ?? 0)}</div><div class="label">Payments completed</div></div>
+    `;
+
+    const { ok: cropOk, status: cropStatus, body: cropData } = await apiRequest("/admin/analytics/crop-wise", { headers: adminAuthHeaders() });
+    if (await handleAuthFailure(cropStatus)) return;
+
+    if (!cropOk) {
+        dashboardMsg.innerHTML = `<div class="msg error">${escapeHtml(cropData?.detail || "Could not load crop analytics")}</div>`;
+        return;
+    }
+
+    const labels = Array.isArray(cropData) ? cropData.map(c => c.crop_name) : [];
+    const quantities = Array.isArray(cropData) ? cropData.map(c => Number(c.total_quantity || 0)) : [];
+
+    if (window.cropChartInstance) window.cropChartInstance.destroy();
+
+    window.cropChartInstance = new Chart(document.getElementById("cropChart"), {
+        type: "bar",
+        data: { labels, datasets: [{ label: "Total quantity procured", data: quantities, backgroundColor: "#d9a441" }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } },
+    });
+}
+
+// -----------------------------------------------------------------
+// STAFF CREATION
+// -----------------------------------------------------------------
+
+async function loadCentresForStaffForm() {
+    const select = document.getElementById("staffCentre");
+    const { ok, body } = await apiRequest("/centres");
+    if (ok && Array.isArray(body) && body.length > 0) {
+        select.innerHTML = body.map(c => `<option value="${escapeHtml(c.centre_id)}">${escapeHtml(c.centre_name)}</option>`).join("");
+    } else {
+        select.innerHTML = `<option value="">No centres yet — create one in the database first</option>`;
+    }
+}
+
+function toggleCentreField() {
+    document.getElementById("centreField").style.display =
+        document.getElementById("staffRole").value === "operator" ? "block" : "none";
+}
+document.getElementById("staffRole").addEventListener("change", toggleCentreField);
+toggleCentreField();
+
+document.getElementById("toggleStaffPw").addEventListener("click", function () {
+    const pw = document.getElementById("staffPassword");
+    const isHidden = pw.type === "password";
+    pw.type = isHidden ? "text" : "password";
+    this.textContent = isHidden ? "Hide" : "Show";
+});
+
+document.getElementById("staffForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const staffMsg = document.getElementById("staffMsg");
+    const submitBtn = document.getElementById("staffSubmitBtn");
+    staffMsg.innerHTML = "";
+
+    const role = document.getElementById("staffRole").value;
+    const rawCentreId = document.getElementById("staffCentre").value;
+    const parsedCentreId = parseInt(rawCentreId, 10);
+    const centreId = role === "operator" && Number.isInteger(parsedCentreId) ? parsedCentreId : null;
+
+    const data = {
+        name: document.getElementById("staffName").value.trim(),
+        mobile: document.getElementById("staffMobile").value.trim(),
+        password: document.getElementById("staffPassword").value,
+        role,
+        centre_id: centreId,
+    };
+
+    if (role === "operator" && !data.centre_id) {
+        staffMsg.innerHTML = `<div class="msg error">Select a procurement centre for this operator.</div>`;
+        return;
+    }
+
+    setButtonLoading(submitBtn, true, "Creating…");
+
+    const { ok, status, body } = await apiRequest("/admin/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
+        body: JSON.stringify(data),
+    });
+
+    setButtonLoading(submitBtn, false);
+
+    if (await handleAuthFailure(status)) return;
+
+    if (!ok) {
+        staffMsg.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Could not create staff account")}</div>`;
+        return;
+    }
+
+    staffMsg.innerHTML = `<div class="msg success">Created ${escapeHtml(body.role)} account for ${escapeHtml(body.name)} (mobile ${escapeHtml(body.mobile)}).</div>`;
+    showToast("Staff account created", "success");
+    document.getElementById("staffForm").reset();
+    toggleCentreField();
+});
+
+</script>
+
+</body>
+</html>

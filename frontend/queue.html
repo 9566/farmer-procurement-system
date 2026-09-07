@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Queue - Smart Farmer Procurement</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar">
+    <a href="index.html" class="brand">🌾 Smart Farmer Procurement</a>
+    <div class="nav-links">
+        <span class="portal-tag farmer">Farmer</span>
+        <a href="farmer-dashboard.html">Dashboard</a>
+    </div>
+</div>
+
+<div class="container narrow" style="text-align:center;">
+    <h1>Live queue status</h1>
+
+    <div class="auth-card" style="text-align:left;">
+        <label for="centre">Procurement centre</label>
+        <select id="centre"></select>
+
+        <div style="text-align:center; margin-top:22px;">
+            <p class="helper-text" style="margin-bottom:6px;">Currently being served</p>
+            <div class="token-display" id="currentToken">—</div>
+        </div>
+
+        <h2 style="margin-top:26px; font-size:1.05rem;">Waiting tokens</h2>
+        <div id="waitingList" style="min-height: 30px;">Loading…</div>
+
+        <p id="connStatus" class="helper-text" style="margin-top:20px; text-align:center;">
+            <span id="connDot" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ccc; margin-right:6px;"></span>
+            Connecting to live updates…
+        </p>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-bottom" style="margin-top:0; border-top:none; padding-top:0;">
+        <span>© 2026 Smart Farmer Procurement System</span>
+        <a href="farmer-dashboard.html">Back to dashboard</a>
+    </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+let socket = null;
+let reconnectTimer = null;
+let reconnectDelay = 1000;
+
+async function loadCentres() {
+    const { ok, body } = await apiRequest("/centres");
+    const sel = document.getElementById("centre");
+
+    if (!ok || !Array.isArray(body) || body.length === 0) {
+        sel.innerHTML = `<option value="">No centres available</option>`;
+        return;
+    }
+
+    sel.innerHTML = body.map(c => `<option value="${escapeHtml(c.centre_id)}">${escapeHtml(c.centre_name)}</option>`).join("");
+
+    const preselect = params.get("centre_id");
+    if (preselect) sel.value = preselect;
+
+    connectToQueue(sel.value);
+    sel.addEventListener("change", () => connectToQueue(sel.value));
+}
+
+function setConnStatus(text, color) {
+    document.getElementById("connStatus").lastChild.textContent = " " + text;
+    document.getElementById("connDot").style.background = color;
+}
+
+function connectToQueue(centreId) {
+    if (socket) socket.close();
+    clearTimeout(reconnectTimer);
+    reconnectDelay = 1000;
+
+    socket = new WebSocket(`${WS_BASE_URL}/ws/queue/${centreId}`);
+
+    socket.onopen = () => setConnStatus("Connected — live updates active.", "#5b7b4f");
+    socket.onerror = () => setConnStatus("Connection error, retrying…", "#b14a34");
+
+    socket.onclose = () => {
+        setConnStatus("Disconnected. Reconnecting…", "#d9a441");
+        reconnectTimer = setTimeout(() => {
+            reconnectDelay = Math.min(reconnectDelay * 1.5, 8000);
+            connectToQueue(centreId);
+        }, reconnectDelay);
+    };
+
+    socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        document.getElementById("currentToken").innerText = data.current_token ?? "—";
+
+        const waitingEl = document.getElementById("waitingList");
+        if (!data.waiting || data.waiting.length === 0) {
+            waitingEl.innerHTML = `<span class="helper-text">No one waiting.</span>`;
+            return;
+        }
+
+        waitingEl.innerHTML = data.waiting.map(t =>
+            `<span class="status-badge" data-status="WAITING" style="margin:4px; font-size:0.95rem;">Token ${escapeHtml(t)}</span>`
+        ).join("");
+    };
+}
+
+loadCentres();
+
+setInterval(() => {
+    if (socket && socket.readyState === WebSocket.OPEN) socket.send("ping");
+}, 5000);
+</script>
+
+</body>
+</html>

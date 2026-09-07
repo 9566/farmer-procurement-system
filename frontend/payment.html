@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment - Smart Farmer Procurement</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar">
+    <a href="index.html" class="brand">🌾 Smart Farmer Procurement</a>
+    <div class="nav-links">
+        <span class="portal-tag farmer">Farmer</span>
+        <a href="farmer-dashboard.html">Dashboard</a>
+    </div>
+</div>
+
+<div class="container narrow">
+    <h1>Check payment status</h1>
+
+    <div class="auth-card">
+        <div id="msgBox"></div>
+
+        <label for="bookingSelect">Your booking</label>
+        <select id="bookingSelect"><option value="">Loading your bookings…</option></select>
+
+        <button id="checkBtn" type="button" style="width:100%; margin-top:14px;">Check status</button>
+
+        <div id="result" style="margin-top:20px;"></div>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-bottom" style="margin-top:0; border-top:none; padding-top:0;">
+        <span>© 2026 Smart Farmer Procurement System</span>
+        <a href="farmer-dashboard.html">Back to dashboard</a>
+    </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+const farmerId = localStorage.getItem("farmer_id");
+if (!farmerId || !localStorage.getItem("access_token")) window.location.href = "login.html";
+
+async function loadBookings() {
+    const select = document.getElementById("bookingSelect");
+    const { ok, body } = await apiRequest(`/farmers/${farmerId}/bookings`, { headers: authHeaders() });
+
+    if (!ok || !Array.isArray(body) || body.length === 0) {
+        select.innerHTML = `<option value="">No bookings yet</option>`;
+        return;
+    }
+
+    const bookings = [...body].sort((a, b) => b.booking_id - a.booking_id);
+    select.innerHTML = bookings.map(b =>
+        `<option value="${escapeHtml(b.booking_id)}">Booking #${escapeHtml(b.booking_id)} — ${escapeHtml(b.booking_date)} — Token ${escapeHtml(b.token_number ?? "—")}</option>`
+    ).join("");
+}
+
+document.getElementById("checkBtn").addEventListener("click", async function () {
+    const bookingId = document.getElementById("bookingSelect").value;
+    const msgBox = document.getElementById("msgBox");
+    const resultEl = document.getElementById("result");
+    msgBox.innerHTML = "";
+    resultEl.innerHTML = "";
+
+    if (!bookingId) {
+        msgBox.innerHTML = `<div class="msg error">Select a booking first.</div>`;
+        return;
+    }
+
+    setButtonLoading(this, true, "Checking…");
+
+    const { ok, status, body } = await apiRequest(`/payments/${bookingId}`, { headers: authHeaders() });
+
+    setButtonLoading(this, false);
+
+    if (status === 401 || status === 403) {
+        localStorage.clear();
+        window.location.href = "login.html";
+        return;
+    }
+
+    if (!ok) {
+        msgBox.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "No payment record found yet — procurement may not be completed.")}</div>`;
+        return;
+    }
+
+    // payment_method and transaction_id are free text an operator typed
+    // into procurement.html — they are NOT trusted strings, so every
+    // field below is escaped before it's placed in innerHTML.
+    resultEl.innerHTML = `
+        <div class="card">
+            <strong>Amount:</strong> ₹${escapeHtml(body.amount ?? "—")}<br>
+            <strong>Method:</strong> ${escapeHtml(body.payment_method ?? "—")}<br>
+            <strong>Transaction ID:</strong> ${escapeHtml(body.transaction_id ?? "—")}<br>
+            <span class="status-badge" data-status="${escapeHtml(body.payment_status)}">${escapeHtml(body.payment_status)}</span>
+        </div>`;
+});
+
+loadBookings();
+</script>
+
+</body>
+</html>

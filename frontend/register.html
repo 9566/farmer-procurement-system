@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register - Smart Farmer Procurement</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar">
+    <a href="index.html" class="brand">🌾 Smart Farmer Procurement</a>
+    <div class="nav-links">
+        <span class="portal-tag farmer">Farmer</span>
+        <a href="index.html">Home</a>
+        <a href="login.html">Login</a>
+    </div>
+</div>
+
+<div class="container narrow">
+    <h1>Create your account</h1>
+    <p class="helper-text">Takes under a minute. You'll use your mobile number to log in.</p>
+
+    <div class="auth-card">
+        <div id="msgBox"></div>
+
+        <form id="registerForm">
+            <label for="name">Full name</label>
+            <input type="text" id="name" required>
+
+            <label for="mobile">Mobile number</label>
+            <input type="text" id="mobile" inputmode="numeric" required pattern="[0-9]{10}" title="10 digit mobile number">
+            <div class="field-hint">10 digits, no spaces or country code.</div>
+
+            <label for="email">Email (optional)</label>
+            <input type="email" id="email">
+
+            <label for="password">Password</label>
+            <div class="password-wrap">
+                <input type="password" id="password" required minlength="6" autocomplete="new-password">
+                <button type="button" class="password-toggle" id="togglePw">Show</button>
+            </div>
+            <div class="field-hint">At least 6 characters.</div>
+
+            <label for="village">Village</label>
+            <input type="text" id="village">
+
+            <label for="district">District</label>
+            <input type="text" id="district">
+
+            <label for="state">State</label>
+            <input type="text" id="state">
+
+            <button type="submit" id="submitBtn" style="width:100%; margin-top:22px;">Create account</button>
+        </form>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-bottom" style="margin-top:0; border-top:none; padding-top:0;">
+        <span>© 2026 Smart Farmer Procurement System</span>
+        <a href="index.html">Back to home</a>
+    </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+document.getElementById("togglePw").addEventListener("click", function () {
+    const pw = document.getElementById("password");
+    const isHidden = pw.type === "password";
+    pw.type = isHidden ? "text" : "password";
+    this.textContent = isHidden ? "Hide" : "Show";
+});
+
+document.getElementById("registerForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const msgBox = document.getElementById("msgBox");
+    const submitBtn = document.getElementById("submitBtn");
+    msgBox.innerHTML = "";
+
+    const mobile = document.getElementById("mobile").value.trim();
+    if (!/^[0-9]{10}$/.test(mobile)) {
+        msgBox.innerHTML = `<div class="msg error">Mobile number must be exactly 10 digits.</div>`;
+        return;
+    }
+
+    const data = {
+        name: document.getElementById("name").value.trim(),
+        mobile,
+        email: document.getElementById("email").value.trim() || null,
+        password: document.getElementById("password").value,
+        village: document.getElementById("village").value.trim(),
+        district: document.getElementById("district").value.trim(),
+        state: document.getElementById("state").value.trim(),
+    };
+
+    setButtonLoading(submitBtn, true, "Creating account…");
+
+    const { ok, body } = await apiRequest("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+
+    setButtonLoading(submitBtn, false);
+
+    if (!ok) {
+        msgBox.innerHTML = `<div class="msg error">${escapeHtml(body?.detail || "Registration failed")}</div>`;
+        return;
+    }
+
+    msgBox.innerHTML = `<div class="msg success">Account created. Redirecting to login…</div>`;
+    showToast("Welcome to Smart Farmer Procurement!", "success");
+    setTimeout(() => window.location.href = "login.html", 1100);
+});
+</script>
+
+</body>
+</html>
