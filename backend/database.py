@@ -41,40 +41,14 @@ DB_NAME = (
 # VALIDATION
 # ============================================================
 
-missing_variables = []
-
-if not DB_USER:
-    missing_variables.append("DB_USER / MYSQLUSER")
-
-if not DB_PASSWORD:
-    missing_variables.append("DB_PASSWORD / MYSQLPASSWORD")
-
-if not DB_HOST:
-    missing_variables.append("DB_HOST / MYSQLHOST")
-
-if not DB_NAME:
-    missing_variables.append("DB_NAME / MYSQLDATABASE")
-
-
-if missing_variables:
-    raise RuntimeError(
-        "Missing database environment variables: "
-        + ", ".join(missing_variables)
-    )
+# Skipped for sqlite
 
 
 # ============================================================
 # DATABASE URL
 # ============================================================
 
-DATABASE_URL = (
-    f"mysql+pymysql://"
-    f"{quote_plus(DB_USER)}:"
-    f"{quote_plus(DB_PASSWORD)}@"
-    f"{DB_HOST}:"
-    f"{DB_PORT}/"
-    f"{quote_plus(DB_NAME)}"
-)
+DATABASE_URL = "sqlite:///./farmer_procurement.db"
 
 
 # ============================================================
@@ -83,10 +57,7 @@ DATABASE_URL = (
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=280,
-    pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
-    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
+    connect_args={"check_same_thread": False},
     future=True,
     echo=False,
 )
