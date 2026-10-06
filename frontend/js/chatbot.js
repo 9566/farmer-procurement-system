@@ -4,7 +4,7 @@ AGRIBOT CHATBOT FRONTEND
 ============================================================
 */
 
-const CHATBOT_API_URL = "https://farmer-procurement-system.onrender.com/chatbot";
+const CHATBOT_API_URL = "http://127.0.0.1:8000/chatbot";
 
 
 // ============================================================

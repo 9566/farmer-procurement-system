@@ -910,6 +910,22 @@ def get_chatbot_response(question: str) -> dict:
 
 
     # --------------------------------------------------------
+    # STEP 0: GREETING CHECK
+    # --------------------------------------------------------
+    normalized = normalize_text(question)
+    if normalized in ["hi", "hello", "hey"]:
+        return {
+            "answer": (
+                "Hello! 🤖 I am AgriBot. "
+                "You can ask me about farmer registration, booking, "
+                "tokens, queues, procurement, payments, security, "
+                "AI/ML, database, backend or the project."
+            ),
+            "tag": "GENERAL QUESTION",
+            "source": "LOCAL_FALLBACK"
+        }
+
+    # --------------------------------------------------------
     # STEP 1: FAQ MATCH
     # --------------------------------------------------------
 

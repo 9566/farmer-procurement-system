@@ -46,21 +46,39 @@ DB_NAME = (
 
 # ============================================================
 # DATABASE URL
+# Auto-detects: uses MySQL if DB_HOST is set, else SQLite (local dev)
 # ============================================================
 
-DATABASE_URL = "sqlite:///./farmer_procurement.db"
-
-
-# ============================================================
-# SQLALCHEMY ENGINE
-# ============================================================
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    future=True,
-    echo=False,
-)
+if DB_HOST and DB_USER and DB_PASSWORD:
+    # ---- Production: MySQL ----
+    DATABASE_URL = (
+        f"mysql+pymysql://"
+        f"{quote_plus(DB_USER)}:"
+        f"{quote_plus(DB_PASSWORD)}@"
+        f"{DB_HOST}:"
+        f"{DB_PORT}/"
+        f"{quote_plus(DB_NAME)}"
+    )
+    print("Database: Using MySQL (production)")
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=280,
+        pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
+        max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
+        future=True,
+        echo=False,
+    )
+else:
+    # ---- Local Dev: SQLite ----
+    DATABASE_URL = "sqlite:///./farmer_procurement.db"
+    print("Database: Using SQLite (local dev)")
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        future=True,
+        echo=False,
+    )
 
 
 # ============================================================
