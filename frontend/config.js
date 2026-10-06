@@ -4,8 +4,8 @@
 // After deployment, set this to your deployed backend URL, e.g.
 // "https://your-app.onrender.com"
 // =====================================================================
-const API_BASE_URL = "http://127.0.0.1:8000";
-const WS_BASE_URL = "ws://127.0.0.1:8000";
+const API_BASE_URL = "https://farmer-procurement-system-production.up.railway.app";
+const WS_BASE_URL = "wss://farmer-procurement-system-production.up.railway.app";
 
 // Farmer auth header (token saved by login.html)
 function authHeaders() {
